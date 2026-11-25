@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atelier de Dés — Simulation 3D</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="scene-wrap">
+    <canvas id="gl-canvas" aria-label="Plateau de dés 3D interactif. Cliquez pour lancer les dés."></canvas>
+    <div id="webgl-fallback" role="alert">
+      <h2>Affichage 3D WebGL indisponible</h2>
+      <p>Votre navigateur ou environnement graphique ne prend pas en charge WebGL. Activez l'accélération matérielle ou ouvrez cette page dans un navigateur récent.</p>
+    </div>
+  </div>
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-group">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="3.5"></rect>
+          <circle cx="8.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"></circle>
+          <circle cx="15.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"></circle>
+          <circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"></circle>
+          <circle cx="8.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"></circle>
+          <circle cx="15.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"></circle>
+        </svg>
+        <span class="brand-title">Atelier de Dés</span>
+        <span class="brand-sub">Plateau 3D</span>
+      </div>
+    </div>
+
+    <div class="topbar-group">
+      <button type="button" id="btn-camera" class="icon-btn" aria-pressed="false" aria-label="Changer l'angle de caméra" title="Angle de vue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <span id="camera-label">3/4</span>
+      </button>
+
+      <button type="button" id="btn-sound" class="icon-btn" aria-pressed="true" aria-label="Activer ou couper le son" title="Son des dés">
+        <svg id="icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="icon-sound-off" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="22" y1="9" x2="16" y2="15"></line>
+          <line x1="16" y1="9" x2="22" y2="15"></line>
+        </svg>
+      </button>
+
+      <button type="button" id="btn-history" class="icon-btn" aria-pressed="false" aria-expanded="false" aria-controls="history-panel" aria-label="Afficher l'historique des lancers" title="Historique">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle>
+          <polyline points="12 7 12 12 15.5 14"></polyline>
+        </svg>
+        <span id="history-count" style="font-variant-numeric: tabular-nums;">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Result HUD -->
+  <section class="result-hud" aria-live="polite" aria-atomic="true">
+    <div class="result-card">
+      <div class="result-total-wrap">
+        <span id="result-label" class="result-label">Total</span>
+        <span id="result-total" class="result-total">—</span>
+      </div>
+      <div class="result-divider" aria-hidden="true"></div>
+      <div id="result-dice-list" class="result-dice-list">
+        <span class="result-status">Prêt à lancer</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- History Drawer -->
+  <aside id="history-panel" class="history-panel" aria-label="Historique des lancers">
+    <div class="history-header">
+      <span class="history-title">Historique des lancers</span>
+      <button type="button" id="btn-clear-history" class="history-clear">Effacer</button>
+    </div>
+    <div id="history-list" class="history-list">
+      <div class="history-empty">Aucun lancer enregistré pour le moment.</div>
+    </div>
+  </aside>
+
+  <div id="table-hint" class="table-hint">Cliquez sur le tapis ou appuyez sur Espace pour lancer</div>
+
+  <!-- Dice Mixer & Full Catalog Popover -->
+  <aside id="mixer-panel" class="popover-panel mixer-panel" aria-label="Mixeur et catalogue de dés">
+    <div class="popover-header">
+      <div class="popover-title-wrap">
+        <span class="popover-title">Mixeur &amp; Catalogue</span>
+        <span id="mixer-pool-count" class="popover-badge">2 / 16</span>
+      </div>
+      <button type="button" id="btn-mixer-reset" class="history-clear">Réinitialiser</button>
+    </div>
+    <div id="mixer-presets" class="mixer-presets" role="group" aria-label="Combinaisons rapides"></div>
+    <div id="mixer-catalog" class="mixer-catalog"></div>
+  </aside>
+
+  <!-- Textures & Finishes Popover -->
+  <aside id="themes-panel" class="popover-panel themes-panel" aria-label="Textures et couleurs des dés">
+    <div class="popover-header">
+      <span class="popover-title">Textures &amp; Couleurs</span>
+      <span class="popover-badge">10 finitions</span>
+    </div>
+    <div id="themes-grid" class="themes-grid" role="group" aria-label="Choisir une finition"></div>
+  </aside>
+
+  <!-- Board Shapes & Textures Popover -->
+  <aside id="board-panel" class="popover-panel board-panel" aria-label="Formes et textures du plateau">
+    <div class="popover-header">
+      <span class="popover-title">Plateau de jeu</span>
+      <span class="popover-badge">4 formes · 8 surfaces</span>
+    </div>
+    <div class="board-section">
+      <div class="catalog-group-title">Forme</div>
+      <div id="board-shapes-row" class="board-shapes-row" role="group" aria-label="Choisir la forme du plateau"></div>
+    </div>
+    <div class="board-section board-section-scroll">
+      <div class="catalog-group-title">Surface &amp; Cadre</div>
+      <div id="board-themes-grid" class="themes-grid board-themes-grid" role="group" aria-label="Choisir la texture du plateau"></div>
+    </div>
+  </aside>
+
+  <!-- Bottom Control Dock -->
+  <div class="dock-wrap">
+    <div class="dock" role="toolbar" aria-label="Paramètres des dés">
+      <div class="die-type-switch" role="group" aria-label="Types de dés rapides">
+        <button type="button" class="die-type-btn" data-type="d6" aria-pressed="true" title="Dé à 6 faces">d6</button>
+        <button type="button" class="die-type-btn" data-type="d20" aria-pressed="false" title="Dé à 20 faces">d20</button>
+        <button type="button" class="die-type-btn" data-type="d100" aria-pressed="false" title="Dé à 100 faces (Zocchihedron)">d100</button>
+        <button type="button" class="die-type-btn" data-type="bb" aria-pressed="false" aria-label="Dé de blocage Blood Bowl" title="Blood Bowl (6 faces)">BB</button>
+        <button type="button" class="die-type-btn" data-type="rock" aria-pressed="false" aria-label="Dé Rock & Roll" title="Dé Rock &amp; Roll (6 symboles)">Rock</button>
+        <button type="button" class="die-type-btn" data-type="chaos" aria-pressed="false" aria-label="Dé Fun & Chaos" title="Dé Fun &amp; Chaos (6 effets)">Fun</button>
+      </div>
+
+      <button type="button" id="btn-mixer" class="dock-pill-btn" aria-pressed="false" aria-expanded="false" aria-controls="mixer-panel" title="Ouvrir le catalogue complet (d2 à d100) et mixer plusieurs dés">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Mix / Tous</span>
+      </button>
+
+      <div class="dock-sep" aria-hidden="true"></div>
+
+      <div id="single-count-group" class="control-group">
+        <span class="control-label">Dés</span>
+        <div class="stepper">
+          <button type="button" id="btn-dec" class="stepper-btn" aria-label="Retirer un dé">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <span id="dice-count-display" class="stepper-value" aria-live="polite">2</span>
+          <button type="button" id="btn-inc" class="stepper-btn" aria-label="Ajouter un dé">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="mix-pool-bar" class="mix-pool-bar" style="display:none" aria-label="Dés mixés actifs"></div>
+
+      <div class="dock-sep" aria-hidden="true"></div>
+
+      <button type="button" id="btn-themes" class="dock-pill-btn" aria-pressed="false" aria-expanded="false" aria-controls="themes-panel" title="Changer la texture et la couleur des dés">
+        <span id="active-theme-swatch" class="swatch swatch-ivory" aria-hidden="true"></span>
+        <span id="active-theme-label">Ivoire</span>
+      </button>
+
+      <button type="button" id="btn-board" class="dock-pill-btn" aria-pressed="false" aria-expanded="false" aria-controls="board-panel" title="Changer la forme, la couleur et la texture du plateau">
+        <span id="active-board-swatch" class="swatch swatch-emerald" aria-hidden="true"></span>
+        <span id="active-board-label">Plateau</span>
+      </button>
+
+      <div class="dock-sep" aria-hidden="true"></div>
+
+      <button type="button" id="btn-roll" class="roll-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+          <polyline points="21 3 21 9 15 9"></polyline>
+        </svg>
+        <span>Lancer</span>
+        <span class="kbd-hint" aria-hidden="true">Espace</span>
+      </button>
+    </div>
+  </div>
+
+  <script src="dice-themes.js" defer></script>
+  <script src="bloodbowl-dice.js" defer></script>
+  <script src="dice-catalog.js" defer></script>
+  <script src="table-boards.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

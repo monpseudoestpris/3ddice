@@ -1,0 +1,19 @@
+# Environnement & secrets
+.env
+.env.*
+*.env
+
+# Système d'exploitation
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Éditeurs & IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Journaux
+*.log

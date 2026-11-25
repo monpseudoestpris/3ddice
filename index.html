@@ -76,6 +76,7 @@
         <span class="result-status">Prêt à lancer</span>
       </div>
     </div>
+    <div id="result-extra" class="result-extra" style="display:none"></div>
   </section>
 
   <!-- History Drawer -->
@@ -134,14 +135,15 @@
     <div class="dock" role="toolbar" aria-label="Paramètres des dés">
       <div class="die-type-switch" role="group" aria-label="Types de dés rapides">
         <button type="button" class="die-type-btn" data-type="d6" aria-pressed="true" title="Dé à 6 faces">d6</button>
+        <button type="button" class="die-type-btn" data-type="d8" aria-pressed="false" title="Dé à 8 faces">d8</button>
+        <button type="button" class="die-type-btn" data-type="d10" aria-pressed="false" title="Dé à 10 faces">d10</button>
+        <button type="button" class="die-type-btn" data-type="d12" aria-pressed="false" title="Dé à 12 faces">d12</button>
         <button type="button" class="die-type-btn" data-type="d20" aria-pressed="false" title="Dé à 20 faces">d20</button>
-        <button type="button" class="die-type-btn" data-type="d100" aria-pressed="false" title="Dé à 100 faces (Zocchihedron)">d100</button>
+        <button type="button" class="die-type-btn" data-type="d100" aria-pressed="false" title="Dé à 100 faces">d100</button>
         <button type="button" class="die-type-btn" data-type="bb" aria-pressed="false" aria-label="Dé de blocage Blood Bowl" title="Blood Bowl (6 faces)">BB</button>
-        <button type="button" class="die-type-btn" data-type="rock" aria-pressed="false" aria-label="Dé Rock & Roll" title="Dé Rock &amp; Roll (6 symboles)">Rock</button>
-        <button type="button" class="die-type-btn" data-type="chaos" aria-pressed="false" aria-label="Dé Fun & Chaos" title="Dé Fun &amp; Chaos (6 effets)">Fun</button>
       </div>
 
-      <button type="button" id="btn-mixer" class="dock-pill-btn" aria-pressed="false" aria-expanded="false" aria-controls="mixer-panel" title="Ouvrir le catalogue complet (d2 à d100) et mixer plusieurs dés">
+      <button type="button" id="btn-mixer" class="dock-pill-btn" aria-pressed="false" aria-expanded="false" aria-controls="mixer-panel" title="Ouvrir le catalogue complet (d6 à d100 + Blood Bowl) et mixer plusieurs dés">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <line x1="5" y1="12" x2="19" y2="12"></line>

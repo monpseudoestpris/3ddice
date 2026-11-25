@@ -1089,6 +1089,396 @@ button:focus-visible {
   height: 15px;
 }
 
+/* =====================================================================
+ * Dice Forge & Dice Throne Extensions (HUD Extra, Lock Chips & Popovers)
+ * ===================================================================== */
+.result-hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.result-extra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  max-width: min(760px, calc(100vw - 24px));
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  pointer-events: auto;
+}
+
+.result-extra-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-extra-badge.tier-ultimate {
+  background: rgba(234, 179, 8, 0.22);
+  border-color: rgba(234, 179, 8, 0.55);
+  color: #fde68a;
+}
+
+.result-extra-badge.tier-epic {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #e9d5ff;
+}
+
+.result-extra-badge.tier-rare {
+  background: rgba(78, 168, 222, 0.2);
+  border-color: rgba(78, 168, 222, 0.45);
+  color: #bae6fd;
+}
+
+.result-extra-badge.tier-good {
+  background: rgba(82, 196, 140, 0.16);
+  border-color: rgba(82, 196, 140, 0.42);
+  color: #bbf7d0;
+}
+
+.result-extra-badge.tier-warning {
+  background: rgba(224, 179, 122, 0.16);
+  border-color: rgba(224, 179, 122, 0.42);
+  color: #f4d2a6;
+}
+
+.result-extra-badge.tier-danger {
+  background: rgba(214, 86, 86, 0.18);
+  border-color: rgba(214, 86, 86, 0.46);
+  color: #fecaca;
+}
+
+.result-extra-action {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(212, 175, 106, 0.42);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 0.73rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.result-extra-action:hover {
+  background: rgba(212, 175, 106, 0.24);
+  border-color: var(--accent);
+}
+
+.die-chip-btn {
+  font-family: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 120ms ease-out, border-color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.die-chip-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+.die-chip-btn.is-locked {
+  border-color: var(--accent);
+  background: rgba(212, 175, 106, 0.22);
+  color: #fff4d2;
+  box-shadow: 0 0 0 1px rgba(212, 175, 106, 0.35);
+}
+
+.die-lock-mark {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--accent);
+}
+
+.dock-accent-btn {
+  border-color: rgba(212, 175, 106, 0.42);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.dock-accent-btn:hover {
+  background: rgba(212, 175, 106, 0.22);
+  border-color: var(--accent);
+  color: #fff3d1;
+}
+
+/* Forge Popover */
+.forge-panel {
+  width: min(500px, calc(100vw - 24px));
+  max-height: min(76vh, 620px);
+}
+
+.forge-presets {
+  display: flex;
+  gap: 5px;
+}
+
+.forge-preset-btn {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.forge-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.forge-tabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.forge-die-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+}
+
+.forge-tab-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease-out, color 140ms ease-out;
+}
+
+.forge-tab-btn[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.forge-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.forge-die-faces {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.forge-slot-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 54px;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out, transform 120ms ease-out;
+}
+
+.forge-slot-btn:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.forge-slot-btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px rgba(212, 175, 106, 0.4);
+}
+
+.forge-slot-num {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.forge-sanctuary-wrap {
+  padding: 10px 14px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forge-sanctuary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.forge-face-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 46px;
+  padding: 6px 5px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.forge-face-card:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--border-strong);
+}
+
+.forge-face-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Dice Throne Hero Popover */
+.throne-panel {
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(74vh, 560px);
+}
+
+.throne-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.throne-hero-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.throne-hero-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-strong);
+}
+
+.throne-hero-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: rgba(212, 175, 106, 0.55);
+}
+
+.throne-hero-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.throne-hero-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.throne-hero-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.throne-hero-sub {
+  font-size: 0.69rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.throne-preview-wrap {
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.throne-hero-faces {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.throne-face-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Responsive adjustments */
 @media (max-width: 900px) {
   .brand-sub,

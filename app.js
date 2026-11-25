@@ -12,9 +12,11 @@
   const INV_INERTIA = 6.0;
   const MAX_HISTORY = 30;
   const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const DIE_DAMP_START_SEC = REDUCED_MOTION ? 1.4 : 2.8;
+  const DIE_MAX_ROLL_SEC = REDUCED_MOTION ? 2.4 : 4.5;
   const DIE_TYPES = (window.DiceCatalog && window.DiceCatalog.ALL_TYPES)
     ? window.DiceCatalog.ALL_TYPES.slice()
-    : ["d4", "d6", "d8", "d10", "d12", "d20", "bb"];
+    : ["d6", "d8", "d10", "d12", "d20", "bb"];
 
   // Standard western d6 face normals (opposite faces sum to 7)
   const D6_FACES = [
@@ -287,55 +289,6 @@
 
   function buildPolyhedraSpecs() {
     const specs = {};
-
-    // --- d4: Regular Tetrahedron (top-apex read) ---
-    {
-      const R = 0.88;
-      const s = R / Math.sqrt(3);
-      const vertices = [
-        [ s,  s,  s], // value 1
-        [ s, -s, -s], // value 2
-        [-s,  s, -s], // value 3
-        [-s, -s,  s]  // value 4
-      ];
-      const rawFaces = [
-        { value: 1, idx: [1, 2, 3] },
-        { value: 2, idx: [0, 3, 2] },
-        { value: 3, idx: [0, 1, 3] },
-        { value: 4, idx: [0, 2, 1] }
-      ];
-      const faces = rawFaces.map((rf) => {
-        const f = orientFaceCCW(vertices, rf.idx);
-        const v0 = vertices[f.indices[0]];
-        const upHint = [v0[0] - f.center[0], v0[1] - f.center[1], v0[2] - f.center[2]];
-        const { uvPts } = computeFaceUVLayout(vertices, f, upHint);
-        return {
-          value: rf.value,
-          n: f.n,
-          center: f.center,
-          indices: f.indices,
-          uvPts,
-          cornerValues: f.indices.map((vi) => vi + 1)
-        };
-      });
-      const restHeight = v3Dot(vertices[faces[0].indices[0]], faces[0].n);
-      specs.d4 = {
-        type: "d4",
-        sides: 4,
-        label: "d4",
-        bottomRead: true,
-        vertices,
-        faces,
-        restHeight,
-        collisionRadius: 0.62,
-        shadowScale: 1.75,
-        atlasCols: 2,
-        atlasRows: 2,
-        atlasW: 1024,
-        atlasH: 1024,
-        fontScale: 0.21
-      };
-    }
 
     // --- d6: Rounded Beveled Cube (classic pips) ---
     specs.d6 = {
@@ -1552,8 +1505,6 @@
           canvas = createDieAtlasCanvas(themeKey);
         } else if (dieType === "bb" && window.BloodBowlDice) {
           canvas = window.BloodBowlDice.createAtlasCanvas(themeCfg);
-        } else if (spec.symbolic && window.DiceCatalog) {
-          canvas = window.DiceCatalog.createSymbolicAtlasCanvas(dieType, themeCfg);
         } else {
           canvas = createPolyhedronAtlasCanvas(spec, themeKey);
         }
@@ -1760,6 +1711,24 @@
     return qNorm(qMul(corr, quat));
   }
 
+  function forceSettleDie(die, spec, state) {
+    die.quat = snapQuaternionFlat(die.quat, spec);
+    die.pos[1] = spec.restHeight;
+    const pad = (spec.collisionRadius || 0.6) + 0.12;
+    if (state.boardWalls && state.boardWalls.length && window.TableBoards) {
+      const [cx, cz] = window.TableBoards.clampPointToBoard(die.pos[0], die.pos[2], state.boardWalls, pad);
+      die.pos[0] = cx;
+      die.pos[2] = cz;
+    } else {
+      die.pos[0] = Math.max(-state.tableHalfW + pad, Math.min(state.tableHalfW - pad, die.pos[0]));
+      die.pos[2] = Math.max(-state.tableHalfD + pad, Math.min(state.tableHalfD - pad, die.pos[2]));
+    }
+    die.vel = [0, 0, 0];
+    die.angVel = [0, 0, 0];
+    die.settled = true;
+    die.forceSettled = true;
+  }
+
   function createRestingDice(poolList, halfW, halfD, boardWalls) {
     const types = poolList.length > 0 ? poolList : ["d6"];
     const count = types.length;
@@ -1794,7 +1763,9 @@
         quat: qNorm(qMul(yaw, initRot)),
         angVel: [0, 0, 0],
         settled: true,
-        settleTimer: 1.0
+        settleTimer: 1.0,
+        rollTime: 0,
+        forceSettled: false
       });
     }
     return dice;
@@ -1833,7 +1804,10 @@
         quat: qRandom(),
         angVel: [spinAxis[0]*spin, spinAxis[1]*spin, spinAxis[2]*spin],
         settled: false,
-        settleTimer: 0
+        locked: false,
+        settleTimer: 0,
+        rollTime: 0,
+        forceSettled: false
       });
     }
     return dice;
@@ -1918,7 +1892,8 @@
 
   function stepPhysics(state, dt, audio) {
     const substeps = 4;
-    const h = Math.min(dt, 0.033) / substeps;
+    const frameDt = Math.min(Math.max(dt, 0), 0.05);
+    const h = Math.min(frameDt, 0.033) / substeps;
     const hw = state.tableHalfW;
     const hd = state.tableHalfD;
     let anyActive = false;
@@ -1929,10 +1904,14 @@
         anyActive = true;
         const spec = DIE_SPECS[die.type] || DIE_SPECS.d6;
 
-        // Gravity & subtle air damping
+        // Gravity, subtle air damping & progressive brake for stuck/long-spinning dice
         die.vel[1] += GRAVITY * h;
-        const linDamp = Math.pow(spec.sides >= 60 ? 0.976 : 0.985, h * 60);
-        const angDamp = Math.pow(spec.sides >= 60 ? 0.956 : spec.sides >= 12 ? 0.966 : 0.975, h * 60);
+        const overtime = Math.max(0, (die.rollTime || 0) - DIE_DAMP_START_SEC);
+        const brakeT = Math.min(1, overtime / Math.max(0.1, DIE_MAX_ROLL_SEC - DIE_DAMP_START_SEC));
+        const linBase = spec.sides >= 60 ? 0.976 : 0.985;
+        const angBase = spec.sides >= 60 ? 0.956 : spec.sides >= 12 ? 0.966 : 0.975;
+        const linDamp = Math.pow(linBase - brakeT * 0.14, h * 60);
+        const angDamp = Math.pow(angBase - brakeT * 0.18, h * 60);
         die.vel[0] *= linDamp;
         die.vel[1] *= linDamp;
         die.vel[2] *= linDamp;
@@ -1992,10 +1971,20 @@
 
           if (dist < minDist && dist > 1e-5) {
             const nx = dx / dist, ny = dy / dist, nz = dz / dist;
-            const overlap = (minDist - dist) * 0.52;
+            const aStatic = !!(a.locked || a.forceSettled);
+            const bStatic = !!(b.locked || b.forceSettled);
+            if (aStatic && bStatic) continue;
 
-            a.pos[0] -= nx * overlap; a.pos[1] = Math.max(specA.restHeight, a.pos[1] - ny * overlap); a.pos[2] -= nz * overlap;
-            b.pos[0] += nx * overlap; b.pos[1] = Math.max(specB.restHeight, b.pos[1] + ny * overlap); b.pos[2] += nz * overlap;
+            const overlap = minDist - dist;
+            if (aStatic) {
+              b.pos[0] += nx * overlap; b.pos[1] = Math.max(specB.restHeight, b.pos[1] + ny * overlap); b.pos[2] += nz * overlap;
+            } else if (bStatic) {
+              a.pos[0] -= nx * overlap; a.pos[1] = Math.max(specA.restHeight, a.pos[1] - ny * overlap); a.pos[2] -= nz * overlap;
+            } else {
+              const halfOv = overlap * 0.52;
+              a.pos[0] -= nx * halfOv; a.pos[1] = Math.max(specA.restHeight, a.pos[1] - ny * halfOv); a.pos[2] -= nz * halfOv;
+              b.pos[0] += nx * halfOv; b.pos[1] = Math.max(specB.restHeight, b.pos[1] + ny * halfOv); b.pos[2] += nz * halfOv;
+            }
 
             const rvx = b.vel[0] - a.vel[0];
             const rvy = b.vel[1] - a.vel[1];
@@ -2003,18 +1992,26 @@
             const vn = rvx * nx + rvy * ny + rvz * nz;
 
             if (vn < 0) {
-              a.settled = false;
-              b.settled = false;
-              const imp = -(1 + 0.52) * vn * 0.5;
-              a.vel[0] -= nx * imp; a.vel[1] -= ny * imp; a.vel[2] -= nz * imp;
-              b.vel[0] += nx * imp; b.vel[1] += ny * imp; b.vel[2] += nz * imp;
+              if (!aStatic) a.settled = false;
+              if (!bStatic) b.settled = false;
+              const imp = -(1 + 0.52) * vn * (aStatic || bStatic ? 1.0 : 0.5);
+              if (!aStatic) {
+                a.vel[0] -= nx * imp; a.vel[1] -= ny * imp; a.vel[2] -= nz * imp;
+              }
+              if (!bStatic) {
+                b.vel[0] += nx * imp; b.vel[1] += ny * imp; b.vel[2] += nz * imp;
+              }
 
               // Impart natural tumble spin on clack
               const spinKick = imp * 1.4;
-              a.angVel[0] += (Math.random() - 0.5) * spinKick;
-              a.angVel[2] += (Math.random() - 0.5) * spinKick;
-              b.angVel[0] += (Math.random() - 0.5) * spinKick;
-              b.angVel[2] += (Math.random() - 0.5) * spinKick;
+              if (!aStatic) {
+                a.angVel[0] += (Math.random() - 0.5) * spinKick;
+                a.angVel[2] += (Math.random() - 0.5) * spinKick;
+              }
+              if (!bStatic) {
+                b.angVel[0] += (Math.random() - 0.5) * spinKick;
+                b.angVel[2] += (Math.random() - 0.5) * spinKick;
+              }
 
               if (-vn > 1.2 && audio) {
                 audio.playImpact(-vn / 12.0, "die");
@@ -2025,10 +2022,16 @@
       }
     }
 
-    // Settle check & gentle anti-cocked-die alignment
+    // Settle check, gentle anti-cocked-die alignment & hard timeout anti-spin lock
     for (const die of state.dice) {
       if (die.settled) continue;
       const spec = DIE_SPECS[die.type] || DIE_SPECS.d6;
+      die.rollTime = (die.rollTime || 0) + frameDt;
+      if (die.rollTime >= DIE_MAX_ROLL_SEC) {
+        forceSettleDie(die, spec, state);
+        continue;
+      }
+
       const speed = v3Len(die.vel);
       const angSpeed = v3Len(die.angVel);
       const faceInfo = detectTopFace(die.quat, spec);
@@ -2049,7 +2052,7 @@
           die.angVel[1] *= 0.8;
           die.angVel[2] *= 0.8;
         }
-        die.settleTimer += dt;
+        die.settleTimer += frameDt;
         if (die.settleTimer > (REDUCED_MOTION ? 0.12 : 0.26)) {
           die.quat = snapQuaternionFlat(die.quat, spec);
           die.pos[1] = spec.restHeight;
@@ -2090,6 +2093,7 @@
   const resultLabelEl = document.getElementById("result-label");
   const totalEl = document.getElementById("result-total");
   const diceListEl = document.getElementById("result-dice-list");
+  const resultExtraEl = document.getElementById("result-extra");
   const singleCountGroup = document.getElementById("single-count-group");
   const countDisplayEl = document.getElementById("dice-count-display");
   const mixPoolBar = document.getElementById("mix-pool-bar");
@@ -2239,23 +2243,22 @@
 
     let hudLabel = "Total";
     let hudTotal = String(numericSum);
-    if (singleSpec && singleSpec.symbolic) {
-      if (singleType === "bb") hudLabel = "Blocage";
-      else if (singleType === "rock") hudLabel = "Rock & Roll";
-      else if (singleType === "chaos") hudLabel = "Fun & Chaos";
-      else if (singleType === "fudge") hudLabel = "Fate";
 
-      if (singleSpec.hasNumericValue) {
-        hudTotal = numericSum > 0 ? `+${numericSum}` : String(numericSum);
-      } else {
-        hudTotal = `${results.length}D`;
-      }
+    if (singleSpec && singleSpec.symbolic) {
+      hudLabel = singleType === "bb" ? "Blocage" : singleSpec.label;
+      hudTotal = `${results.length}D`;
     } else if (!hasNumeric) {
       hudLabel = "Mix";
       hudTotal = `${results.length}D`;
     }
 
     return { hudLabel, hudTotal, numericSum, hasNumeric, isMixed: distinctTypes.size > 1 };
+  }
+
+  function renderResultExtra() {
+    if (!resultExtraEl) return;
+    resultExtraEl.textContent = "";
+    resultExtraEl.style.display = "none";
   }
 
   function renderResultHUD(mode, results) {
@@ -2267,10 +2270,7 @@
     if (mode !== "settled") {
       if (resultLabelEl) {
         if (singleSpec && singleSpec.symbolic) {
-          resultLabelEl.textContent = singleType === "bb" ? "Blocage"
-            : singleType === "rock" ? "Rock & Roll"
-            : singleType === "chaos" ? "Fun & Chaos"
-            : "Fate";
+          resultLabelEl.textContent = singleType === "bb" ? "Blocage" : singleSpec.label;
         } else {
           resultLabelEl.textContent = "Total";
         }
@@ -2284,6 +2284,7 @@
       span.className = "result-status";
       span.textContent = `${formatPoolFormula(entries)} ${totalCount > 1 ? "prêts" : "prêt"}`;
       diceListEl.appendChild(span);
+      renderResultExtra();
       return;
     }
 
@@ -2295,6 +2296,7 @@
         chip.textContent = "•";
         diceListEl.appendChild(chip);
       }
+      renderResultExtra();
       return;
     }
 
@@ -2302,7 +2304,7 @@
     if (resultLabelEl) resultLabelEl.textContent = summary.hudLabel;
     totalEl.textContent = summary.hudTotal;
 
-    for (const r of results) {
+    results.forEach((r) => {
       const spec = DIE_SPECS[r.type] || DIE_SPECS.d6;
       const chip = document.createElement("span");
 
@@ -2337,7 +2339,9 @@
       }
 
       diceListEl.appendChild(chip);
-    }
+    });
+
+    renderResultExtra();
   }
 
   function renderHistory() {
@@ -2395,7 +2399,8 @@
     const singleType = isSingle ? entries[0][0] : null;
 
     for (const btn of dieTypeBtns) {
-      btn.setAttribute("aria-pressed", String(isSingle && btn.dataset.type === singleType));
+      const dt = btn.dataset.type;
+      btn.setAttribute("aria-pressed", String(isSingle && dt === singleType));
     }
 
     if (isSingle) {
@@ -2754,7 +2759,7 @@
     tableHintEl.classList.add("hidden");
     closeAllPanels(null);
     const pool = getPoolList();
-    audio.playLaunchRattle(pool.length);
+    audio.playLaunchRattle(Math.max(1, pool.length));
     state.dice = launchDice(pool, state.tableHalfW, state.tableHalfD, state.boardWalls);
     state.rolling = true;
     renderResultHUD("rolling");
@@ -2788,10 +2793,11 @@
   /* Event Listeners */
   for (const btn of dieTypeBtns) {
     btn.addEventListener("click", (e) => {
+      const dt = btn.dataset.type;
       if (e && e.shiftKey) {
-        adjustPoolType(btn.dataset.type, 1);
+        adjustPoolType(dt, 1);
       } else {
-        setSingleDieType(btn.dataset.type, true);
+        setSingleDieType(dt, true);
       }
     });
   }
